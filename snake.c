@@ -4,73 +4,115 @@
 
 #include <ncurses.h>
 
+
+// var glob
 int MAX_X = 25, MAX_Y = 25;
+char ** MAP;
 
-int  majSnakeMap(int ** snake, int ** map, int x, int y, int ch, int tailleSnake) {
-    int saveLastX = snake[tailleSnake-1][0];
-    int saveLastY = snake[tailleSnake-1][1];
-    for(int i=tailleSnake-1 ; i > 0 ; i--) {
-        snake[i][0] = snake[i+1][0];
-        snake[i][1] = snake[i+1][1];
-    }
+typedef struct cell{
+    struct cell *next;
+    int x;
+    int y;
+} cell;
 
-    snake[0][0] = x;
-    snake[0][1] = y;
+typedef struct snake{
+    cell *head;
+    int size;
+} snake;
 
 
-    if(map[x][y])
+// déclaration
+
+void majScore(snake *mySnake, int newPosHeadX, int newPosHeadY);
+void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY);
+
+
+
+
+
+
+void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY){
+
+    majScore(mySnake, newPosHeadX, newPosHeadY);
+
+    int newX = newPosHeadX;
+    int newY = newPosHeadY;
+    int lastX = mySnake->head->x;
+    int lastY = mySnake->head->y;
+    
+    cell *currentCell = mySnake->head;
+    while(currentCell)
     {
-        snake[tailleSnake][0] = saveLastX;
-        snake[tailleSnake][1] = saveLastY;
-        tailleSnake++;
-        map[x][y] = 0;
+        MAP[currentCell->x-1][currentCell->y-1] = 'x';  // la map commence en 0.0 pour le point 1.1
+
+        lastX = mySnake->head->x;
+        lastY = mySnake->head->y;
+
+        currentCell->x = newX;
+        currentCell->y = newY;
+
+        newX = lastX;
+        newY = lastY;
+
+        currentCell = currentCell->next;
     }
 
-    return tailleSnake;
+}
+
+void majScore(snake *mySnake, int newPosHeadX, int newPosHeadY){
+    if(MAP[newPosHeadX][newPosHeadY] == 1){
+        cell *newCell = (cell*)malloc(sizeof(newCell));
+
+        cell *curCell = mySnake->head;
+        while(curCell->next){
+            curCell = curCell->next;
+        }
+        curCell->next = newCell;
+
+        mySnake->size++;
+    }
 }
 
 
 
 
-
-
-
 int main() {
+    // variables:
     int ch, saveCh;
-    int x = 1, y = 1; // head
-    int ** map = (int**)malloc((MAX_X-1) * sizeof(int*));
-    for (int i = 0; i < (MAX_X-1); i++) {
-        map[i] = (int*)calloc(MAX_Y-1, sizeof(int));
+
+    MAP = (char**)malloc((MAX_X-2) * sizeof(char*)); // -2 pour les walls
+    for (int i = 0; i < (MAX_X-2); i++) {
+        MAP[i] = (char*)malloc((MAX_Y-2)*sizeof(char));
+        for(int j = 0; j<MAX_Y-2; j++)
+            MAP[i][j] = '*';
     }
-    map[10][10] = 1;
-     map[10][15] = 1;
 
-    int ** snake = (int**)malloc((MAX_X-1) * (MAX_Y-1) * sizeof(int*));
-    for (int i = 0; i < (MAX_X-1) * (MAX_Y-1); i++) {
-        snake[i] = (int*)calloc(2, sizeof(int));
-    }
-    snake[0][0] = x;
-    snake[0][1] = y;
-    int tailleSnake = 1;
+    snake mySnake;
+    cell *firstCell = (cell*)malloc(sizeof(cell));
+    firstCell->next = NULL;
+    firstCell->x = 1;
+    firstCell->y = 1;
 
+    mySnake.head = firstCell;
+    mySnake.size = 1;
 
 
 
+    // ncurses:
     initscr();            // Initialise l'écran
     raw();               // Désactive le buffering des entrées
     keypad(stdscr, TRUE); // Permet l'utilisation des touches spéciales
     noecho();             // Désactive l'affichage des entrées utilisateur
     curs_set(0);          // Cache le curseur
-
-
-    resizeterm(MAX_X, MAX_Y);
-	mvprintw(y, x, "X");
-    
-
-    saveCh = KEY_RIGHT;
     timeout(500); // wait 500ms for the input of getch
-    while((ch = getch()) != 'q') { // Appuyer sur 'q' pour quitter
+    resizeterm(MAX_X, MAX_Y);
+	
     
+
+    saveCh = KEY_RIGHT; // dir de base
+    while((ch = getch()) != 'q') { // Appuyer sur 'q' pour quitter
+        int x = (mySnake.head)->x;
+        int y = (mySnake.head)->y;
         if(ch==ERR){ // touche pas pressée
 
             ch = saveCh;
@@ -80,39 +122,39 @@ int main() {
         }
         switch(ch) {
             case KEY_UP:
-                y = (y > 1) ? y - 1 : MAX_Y - 1 -1;
+                y = (y > 1) ? y-1 : MAX_Y-2;
                 break;
             case KEY_DOWN:
-                y = (y < MAX_Y - 1 -1) ? y + 1 : 1;
+                y = (y < MAX_Y-2) ? y+1 : 1;
                 break;
             case KEY_LEFT:
-                x = (x > 1) ? x - 1 : MAX_X - 1 -1;
+                x = (x > 1) ? x-1 : MAX_X-2;
                 break;
             case KEY_RIGHT:
-                x = (x < MAX_X - 1 -1) ? x + 1 : 1;
+                x = (x < MAX_X-2) ? x+1 : 1;
                 break;
 
         }
 
-        tailleSnake = majSnakeMap(snake, map, x, y, ch, tailleSnake);
+
+        // maj variable
+        majSnakeMap(&mySnake, x, y);
 
 
+
+
+
+        // rester aff
         clear();
 
         // Affichage de la carte:
-        for (int i = 0; i < (MAX_X-1); i++) {
-            for(int j = 0; j < (MAX_Y-1); j++){
-                if(map[i][j] == 1)
-                    mvprintw(j, i, "O");
+        for (int i = 0; i < (MAX_X-2); i++) {
+            for(int j = 0; j < (MAX_Y-2); j++){
+                if(MAP[i][j] == 'x')
+                    mvprintw(j+1, i+1, "x");
             }
         }
 
-
-        // Affihage du serpent
-        for(int i=0 ; i < tailleSnake ; i++) {
-            mvprintw(snake[i][1], snake[i][0], "X");
-            printf("snake[i][1]: %d ; snake[i][0]: %d \r\n", snake[i][1], snake[i][0]);
-        }
         
         
         // box pour les bords
@@ -129,19 +171,19 @@ int main() {
 
     /* free map */
     for (int i = 0; i < MAX_X; i++) {
-        free(map[i]);
+        free(MAP[i]);
     }
-    free(map);
+    free(MAP);
 
     /* free snake */
-    for (int i = 0; i < (MAX_X-1) * (MAX_Y-1); i++) {
-        free(snake[i]);
+    firstCell = mySnake.head;
+    cell *nextCell = mySnake.head->next;
+    while(nextCell){
+        free(firstCell);
+        firstCell = nextCell;
+        nextCell = nextCell->next;
     }
-    free(snake);
-    printf("taille: %d \r\n", tailleSnake);
-    for(int i=0 ; i < tailleSnake ; i++) {
-            mvprintw(snake[i][1], snake[i][0], "X");
-            printf("snake[i][1]: %d ; snake[i][0]: %d \r\n", snake[i][1], snake[i][0]);
-        }
+    free(firstCell);
+
     return 0;
 }
