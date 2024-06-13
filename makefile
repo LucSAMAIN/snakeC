@@ -1,4 +1,6 @@
 all:
 	gcc ./snake.c -o snake -lncurses -g
-	rm ./debugHelp.txt
+	> ./debugHelp.txt
+	> ./debugSnake.txt
+	> ./debugMap.txt
 

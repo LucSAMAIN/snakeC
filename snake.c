@@ -7,8 +7,8 @@
 
 
 // var glob
-const int MAX_X = 25; 
-const int MAX_Y = 25;
+const int MAX_X = 10; 
+const int MAX_Y = 10;
 int POSX_BONBON = MAX_X/2;
 int POSY_BONBON = MAX_Y/2;
 char ** MAP; // "b" = bonbon, "x" = cell/snake, "*" nothing 
@@ -21,6 +21,7 @@ typedef struct cell{
 
 typedef struct snake{
     cell *head;
+    cell *tail;
     int size;
 } snake;
 
@@ -32,10 +33,12 @@ int majScoreSnake(snake *mySnake, int newPosHeadX, int newPosHeadY); // 1 collis
 void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY);
 void mapInit(void);
 void randomBonbon(void);
+void dessine(void);
 
 // debug
 void debugPrintSnake(snake *mySnake);
 void debugPrint(const char *toPrint);
+void debugMap();
 
 
 
@@ -58,11 +61,10 @@ void debugPrint(const char *toPrint)
 }
 
 
-
 void debugPrintSnake(snake *mySnake)
 {
     // Ouvrir un fichier pour écrire les résultats
-    FILE *file = fopen("debugHelp.txt", "a");
+    FILE *file = fopen("debugSnake.txt", "a");
     if (file == NULL) {
         fprintf(stderr, "Erreur d'ouverture du fichier.\n");
         return;
@@ -70,7 +72,7 @@ void debugPrintSnake(snake *mySnake)
 
     cell *curCell = mySnake->head;
     fprintf(file, "{cell:%p, x:%d, y:%d} --> ", curCell, curCell->x, curCell->y);
-    while(curCell->next){
+    while(curCell){
         fprintf(file, "{cell:%p, x:%d, y:%d} --> ", curCell, curCell->x, curCell->y);
         curCell = curCell->next;
     }
@@ -82,17 +84,63 @@ void debugPrintSnake(snake *mySnake)
 }
 
 
+void debugPrintMap(void)
+{
+
+    FILE *file = fopen("debugMap.txt", "a");
+    if (file == NULL) {
+        fprintf(stderr, "Erreur d'ouverture du fichier.\n");
+        return;
+    } 
+
+    for(int i=0; i<MAX_X; i++)
+    {
+        for(int j=0; j<MAX_Y ;j++)
+            fprintf(file, "%c", MAP[i][j]);
+        fprintf(file, "\r\n");
+    }
+    fprintf(file, "\r\n\r\n\r\n");
+    fclose(file);
+
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////   FIN DEBUG   ////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 
 
+void dessine(void)
+{
+    // Affichage de la carte:
+    for (int i = 1; i < MAX_X-1; i++) {
+        for(int j = 1; j < MAX_Y-1; j++){
+            if(MAP[i][j] == 'x')
+                mvprintw(j, i, "x");
 
+        }
+    }
+
+    // bonbon:
+    mvprintw(POSY_BONBON, POSX_BONBON, "b");
+    
+    // box pour les bords
+    mvhline(0, 0, '-', MAX_X);
+    mvhline(MAX_X-1, 0, '-', MAX_X);
+    mvvline(0, MAX_X-1, '|', MAX_X);
+    mvvline(0, 0, '|', MAX_X);
+}
 
 void randomBonbon(void) {
-    if(POSY_BONBON && POSX_BONBON)
-        return;
+
+    do{
     POSX_BONBON = (rand() % MAX_X-2) + 1; // Générer un entier entre 1 et MAX_X-2
     POSY_BONBON = (rand() % MAX_Y-2) + 1; // Générer un entier entre 1 et MAX_Y-2
+    }
+    while(MAP[POSX_BONBON][POSY_BONBON] == 'x');
+    MAP[POSX_BONBON][POSY_BONBON] = 'b';
 
 }
 
@@ -106,33 +154,34 @@ void mapInit(void)
         for(int j = 0; j<MAX_Y; j++)
             MAP[i][j] = '*'; // rien
     }
+
+    MAP[POSX_BONBON][POSY_BONBON] = 'b';
 }
 
 
 
 int majScoreSnake(snake *mySnake, int newPosHeadX, int newPosHeadY){
-    if(newPosHeadX == POSX_BONBON && newPosHeadY == POSY_BONBON){
-        cell *newCell = (cell*)malloc(sizeof(newCell));
-        newCell->x = 0;
-        newCell->y = 0;
-        newCell->next = NULL;
-
-        cell *curCell = mySnake->head;
-        while(curCell->next){
-            curCell = curCell->next;
-        }
-        curCell->next = newCell;
-
-        mySnake->size++;
-
-        POSX_BONBON = 0; // NULL
-        POSY_BONBON = 0; // NULL
-
-        return 0;
+    if(MAP[newPosHeadX][newPosHeadY] == 'x') { // collision
+        return 1;
     }
 
-    if(MAP[newPosHeadX][newPosHeadY] = 'x') // collision
-        return 1;
+
+    if(newPosHeadX == POSX_BONBON && newPosHeadY == POSY_BONBON){ // ajout d'une cell
+        cell *newCell = (cell*)malloc(sizeof(cell));
+        newCell->next = NULL;
+        newCell->x = 0;
+        newCell->x = 0;
+
+        mySnake->tail->next = newCell;
+        
+        mySnake->tail = newCell;
+        mySnake->size++;
+
+        randomBonbon(); // on ajoute un bonbon
+    }
+
+    
+        return 0;
 }
 
 void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY){
@@ -145,9 +194,8 @@ void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY){
     cell *currentCell = mySnake->head;
     while(currentCell)
     {
-        MAP[newX][newY] = 'x'; // nouvelle position occupée
+        MAP[newX][newY] = 'x'; // nouvelle position est donc occupée
         
-
         lastX = currentCell->x;
         lastY = currentCell->y;
 
@@ -156,13 +204,34 @@ void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY){
         currentCell->x = newX;
         currentCell->y = newY;
 
-        newX = lastX;
+        newX = lastX; // les coordonnées du suivant sont les anciennes coordonnées du courant
         newY = lastY;
 
         currentCell = currentCell->next;
     }
 
 }
+
+
+
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////   DEBUT MAIN   ////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
 
 
 int main() {
@@ -172,14 +241,17 @@ int main() {
 
 
     // snake init
-    snake mySnake;
     cell *firstCell = (cell*)malloc(sizeof(cell));
     firstCell->next = NULL;
     firstCell->x = 1;
     firstCell->y = 1;
+    snake *mySnake = (snake*)malloc(sizeof(snake));
+    mySnake->head = firstCell;
+    mySnake->tail = firstCell;
+    mySnake->size = 1;
 
-    mySnake.head = firstCell;
-    mySnake.size = 1;
+    MAP[firstCell->x][firstCell->y] = 'x';
+    
 
 
 
@@ -201,15 +273,15 @@ int main() {
     {
        
 
-        int intervalMs = 1;
-        int totalWaitMs = 300;
+        int totalWaitMs = 200;
+        int intervalMs = totalWaitMs/100 + 1;
         int elapsedWaitMs = 0;
 
-        timeout(intervalMs); // getch bloquant sur intervalMs ms
+        nodelay(stdscr, TRUE); // getch() ne bloque pas
 
         while (elapsedWaitMs < totalWaitMs && ch != 'q') {
             ch = getch();
-            
+            usleep(intervalMs*1000);
             if(ch==ERR || ch==410){ // touche pas pressée
 
             ch = saveCh;
@@ -226,8 +298,14 @@ int main() {
             break;
 
 
-        int x = (mySnake.head)->x;
-        int y = (mySnake.head)->y;
+        
+        debugPrintSnake(mySnake);
+        debugPrintMap();
+
+
+
+        int x = mySnake->head->x;
+        int y = mySnake->head->y;
         
         
 
@@ -248,39 +326,18 @@ int main() {
 
 
         // maj variable
-        int result = majScoreSnake(&mySnake, x, y); // if bobon eaten = score ++
-        if(result)
+        int result = majScoreSnake(mySnake, x, y); // if bobon eaten = score ++
+        if(result) // result = 1 = collision
             break;
-        randomBonbon(); // update bonbon pos
-        majSnakeMap(&mySnake, x, y);
-
-
-
-
+        majSnakeMap(mySnake, x, y);
 
         // reste aff
         clear();
 
-        // Affichage de la carte:
-        for (int i = 1; i < MAX_X-1; i++) {
-            for(int j = 1; j < MAX_Y-1; j++){
-                if(MAP[i][j] == 'x')
-                    mvprintw(j, i, "x");
-            }
-        }
+        // affichage
+        dessine();
 
-        // bonbon:
-        mvprintw(POSY_BONBON, POSX_BONBON, "b");
         
-        // box pour les bords
-        mvhline(0, 0, '-', MAX_X);
-        mvhline(MAX_X-1, 0, '-', MAX_X);
-        mvvline(0, MAX_X-1, '|', MAX_X);
-        mvvline(0, 0, '|', MAX_X);
-
-
-        // debug:
-        debugPrintSnake(&mySnake);
         
 
         refresh();
@@ -289,12 +346,16 @@ int main() {
 
 
 
-
-
-
-
-
     endwin(); // Restaure les paramètres du terminal
+
+    printf("You lost! You reached the size of: %d cells! GG!\r\n", mySnake->size);
+
+
+
+
+
+
+
 
     /* free map */
     for (int i = 0; i < MAX_X; i++) {
@@ -302,15 +363,18 @@ int main() {
     }
     free(MAP);
 
-    /* free snake */
-    firstCell = mySnake.head;
-    cell *nextCell = mySnake.head->next;
+    /* free cells */
+    firstCell = mySnake->head;
+    cell *nextCell = mySnake->head->next;
     while(nextCell){
         free(firstCell);
         firstCell = nextCell;
         nextCell = nextCell->next;
     }
     free(firstCell);
+
+    /* free snake */
+    free(mySnake);
 
     return 0;
 }
