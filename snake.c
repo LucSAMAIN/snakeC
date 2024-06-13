@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 #include <ncurses.h>
 
@@ -27,7 +28,7 @@ typedef struct snake{
 
 
 // déclaration
-void majScoreSnake(snake *mySnake, int newPosHeadX, int newPosHeadY);
+int majScoreSnake(snake *mySnake, int newPosHeadX, int newPosHeadY); // 1 collision, 0 nothing
 void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY);
 void mapInit(void);
 void randomBonbon(void);
@@ -81,6 +82,12 @@ void debugPrintSnake(snake *mySnake)
 }
 
 
+
+
+
+
+
+
 void randomBonbon(void) {
     if(POSY_BONBON && POSX_BONBON)
         return;
@@ -103,7 +110,7 @@ void mapInit(void)
 
 
 
-void majScoreSnake(snake *mySnake, int newPosHeadX, int newPosHeadY){
+int majScoreSnake(snake *mySnake, int newPosHeadX, int newPosHeadY){
     if(newPosHeadX == POSX_BONBON && newPosHeadY == POSY_BONBON){
         cell *newCell = (cell*)malloc(sizeof(newCell));
         newCell->x = 0;
@@ -121,11 +128,11 @@ void majScoreSnake(snake *mySnake, int newPosHeadX, int newPosHeadY){
         POSX_BONBON = 0; // NULL
         POSY_BONBON = 0; // NULL
 
-        return;
+        return 0;
     }
 
     if(MAP[newPosHeadX][newPosHeadY] = 'x') // collision
-        exit(1);
+        return 1;
 }
 
 void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY){
@@ -138,11 +145,11 @@ void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY){
     cell *currentCell = mySnake->head;
     while(currentCell)
     {
-        MAP[newX][newY] = 'x';
+        MAP[newX][newY] = 'x'; // nouvelle position occupée
         
 
-        lastX = mySnake->head->x;
-        lastY = mySnake->head->y;
+        lastX = currentCell->x;
+        lastY = currentCell->y;
 
         MAP[lastX][lastY] = '*'; // l'ancienne position est libre
 
@@ -182,27 +189,48 @@ int main() {
     keypad(stdscr, TRUE); // Permet l'utilisation des touches spéciales
     noecho();             // Désactive l'affichage des entrées utilisateur
     curs_set(0);          // Cache le curseur
-    timeout(100); // wait 500ms for the input of getch
     resizeterm(MAX_X, MAX_Y);
+    
 	
     int ch, saveCh;
 
     saveCh = 261; // dir de base = droite
     ch = 410; // err de base
 
-    while((ch = getch()) != 'q') { // Appuyer sur 'q' pour quitter
-        int x = (mySnake.head)->x;
-        int y = (mySnake.head)->y;
-        
-        if(ch==ERR || ch==410){ // touche pas pressée
+    while(1)
+    {
+       
+
+        int intervalMs = 1;
+        int totalWaitMs = 300;
+        int elapsedWaitMs = 0;
+
+        timeout(intervalMs); // getch bloquant sur intervalMs ms
+
+        while (elapsedWaitMs < totalWaitMs && ch != 'q') {
+            ch = getch();
+            
+            if(ch==ERR || ch==410){ // touche pas pressée
 
             ch = saveCh;
             // printf("ERR(savech:%d ch:%d) ", saveCh, ch);
-        } 
-        else{
+            } 
+            else{
             // printf("OK(savech:%d ch:%d) ", saveCh, ch);
             saveCh = ch;
+            }
+            elapsedWaitMs += intervalMs;
         }
+
+        if(ch == 'q')
+            break;
+
+
+        int x = (mySnake.head)->x;
+        int y = (mySnake.head)->y;
+        
+        
+
         switch(ch) {
             case KEY_UP:
                 y = (y > 1) ? y-1 : MAX_Y-2;
@@ -216,12 +244,13 @@ int main() {
             case KEY_RIGHT:
                 x = (x < MAX_X-2) ? x+1 : 1;    
                 break;
-
         }
 
 
         // maj variable
-        majScoreSnake(&mySnake, x, y); // if bobon eaten = score ++
+        int result = majScoreSnake(&mySnake, x, y); // if bobon eaten = score ++
+        if(result)
+            break;
         randomBonbon(); // update bonbon pos
         majSnakeMap(&mySnake, x, y);
 
@@ -256,7 +285,6 @@ int main() {
 
         refresh();
     }
-
 
 
 
