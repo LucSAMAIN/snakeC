@@ -1,5 +1,6 @@
-./snake
-./debugHelp.txt
-./debugMap.txt
-./debugSnake.txt
-./.idea/*
+snake
+debugHelp.txt
+debugMap.txt
+debugSnake.txt
+.idea/
+
