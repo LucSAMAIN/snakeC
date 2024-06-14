@@ -2,15 +2,17 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdbool.h>
 
 #include <ncurses.h>
 
 
 // var glob
-const int MAX_X = 10; 
-const int MAX_Y = 10;
-int POSX_BONBON = MAX_X/2;
-int POSY_BONBON = MAX_Y/2;
+int MAX_X = 10; 
+int MAX_Y = 10;
+int POSX_BONBON;
+int POSY_BONBON;
 char ** MAP; // "b" = bonbon, "x" = cell/snake, "*" nothing 
 
 typedef struct cell{
@@ -31,9 +33,10 @@ typedef struct snake{
 // déclaration
 int majScoreSnake(snake *mySnake, int newPosHeadX, int newPosHeadY); // 1 collision, 0 nothing
 void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY);
-void mapInit(void);
+void mapInit(int);
 void randomBonbon(void);
 void dessine(void);
+int running(snake *mySnake, int slowness);
 
 // debug
 void debugPrintSnake(snake *mySnake);
@@ -134,20 +137,52 @@ void dessine(void)
 }
 
 void randomBonbon(void) {
+    int **parcoursXY = (int**)malloc(sizeof(int*)*MAX_X*MAX_Y);
+    for(int p = 0; p<MAX_X*MAX_Y; p++)
+        parcoursXY[p] = (int*)malloc(sizeof(int)*2); // X puis Y
 
-    do{
-    POSX_BONBON = (rand() % MAX_X-2) + 1; // Générer un entier entre 1 et MAX_X-2
-    POSY_BONBON = (rand() % MAX_Y-2) + 1; // Générer un entier entre 1 et MAX_Y-2
-    }
-    while(MAP[POSX_BONBON][POSY_BONBON] == 'x');
+    int curSizeParcours = 0;
+    for(int i = 1; i<MAX_X-1; i++)
+        for(int j=1; j<MAX_Y-1; j++)
+            if(MAP[i][j] == '*')
+            {  
+                
+                parcoursXY[curSizeParcours][0] = i;
+                parcoursXY[curSizeParcours][1] = j;
+                curSizeParcours++;
+            }
+                
+
+    int value = rand() % curSizeParcours; // Générer un entier entre 0 et curSizeParcours-1
+    int *aleatoire = parcoursXY[value]; 
+    POSX_BONBON = aleatoire[0]; 
+    POSY_BONBON = aleatoire[1]; 
+
+    /*
+    char str1[100], str2[100];
+    sprintf(str1, "%d ", POSX_BONBON);
+    sprintf(str2, "%d\r\n", POSY_BONBON);
+    strcat(str1, str2);
+    debugPrint(str1);
+    */
+    
     MAP[POSX_BONBON][POSY_BONBON] = 'b';
+
+
+    /* free parcours */
+    for(int p = 0; p<MAX_X*MAX_Y; p++)
+        free(parcoursXY[p]);
+    free(parcoursXY);
 
 }
 
 
-void mapInit(void)
+void mapInit(int MAPSize)
 {
     // init map
+    MAX_X = MAX_Y = MAPSize;
+    POSX_BONBON = MAX_X/2;
+    POSY_BONBON = MAX_Y/2;
     MAP = (char**)malloc((MAX_X) * sizeof(char*)); // -2 pour les walls
     for (int i = 0; i < (MAX_X); i++) {
         MAP[i] = (char*)malloc((MAX_Y)*sizeof(char));
@@ -164,6 +199,9 @@ int majScoreSnake(snake *mySnake, int newPosHeadX, int newPosHeadY){
     if(MAP[newPosHeadX][newPosHeadY] == 'x') { // collision
         return 1;
     }
+
+    if(mySnake->size == MAX_X*MAX_Y -1)
+        return 2; // victoire taille max atteint !
 
 
     if(newPosHeadX == POSX_BONBON && newPosHeadY == POSY_BONBON){ // ajout d'une cell
@@ -221,40 +259,12 @@ void majSnakeMap(snake *mySnake, int newPosHeadX, int newPosHeadY){
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////   DEBUT MAIN   ////////////////////////////////////////////////////////////////////
+///////////////////////////////////   DEBUT RUNNING   ////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-
-
-
-
-
-
-
-
-
-int main() {
-
-    // map init
-    mapInit();
-
-
-    // snake init
-    cell *firstCell = (cell*)malloc(sizeof(cell));
-    firstCell->next = NULL;
-    firstCell->x = 1;
-    firstCell->y = 1;
-    snake *mySnake = (snake*)malloc(sizeof(snake));
-    mySnake->head = firstCell;
-    mySnake->tail = firstCell;
-    mySnake->size = 1;
-
-    MAP[firstCell->x][firstCell->y] = 'x';
+int running(snake *mySnake, int slowness)
+{
     
-
-
-
     // ncurses:
     initscr();            // Initialise l'écran
     raw();               // Désactive le buffering des entrées
@@ -264,7 +274,7 @@ int main() {
     resizeterm(MAX_X, MAX_Y);
     
 	
-    int ch, saveCh;
+    int ch, saveCh, result;
 
     saveCh = 261; // dir de base = droite
     ch = 410; // err de base
@@ -273,7 +283,7 @@ int main() {
     {
        
 
-        int totalWaitMs = 200;
+        int totalWaitMs = slowness;
         int intervalMs = totalWaitMs/100 + 1;
         int elapsedWaitMs = 0;
 
@@ -295,13 +305,15 @@ int main() {
         }
 
         if(ch == 'q')
+        {
+            result = 3;
             break;
+        }
 
-
-        
+        /*
         debugPrintSnake(mySnake);
         debugPrintMap();
-
+        */
 
 
         int x = mySnake->head->x;
@@ -326,8 +338,8 @@ int main() {
 
 
         // maj variable
-        int result = majScoreSnake(mySnake, x, y); // if bobon eaten = score ++
-        if(result) // result = 1 = collision
+        result = majScoreSnake(mySnake, x, y); // if bobon eaten = score ++
+        if(result) // result = 1 = collision or result = 2 = win
             break;
         majSnakeMap(mySnake, x, y);
 
@@ -348,33 +360,100 @@ int main() {
 
     endwin(); // Restaure les paramètres du terminal
 
-    printf("You lost! You reached the size of: %d cells! GG!\r\n", mySnake->size);
+    return result;
+}
 
 
 
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////   DEBUT MAIN   ////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 
 
-    /* free map */
-    for (int i = 0; i < MAX_X; i++) {
-        free(MAP[i]);
-    }
-    free(MAP);
+int main() {
+    int quit = 0;
 
-    /* free cells */
-    firstCell = mySnake->head;
-    cell *nextCell = mySnake->head->next;
-    while(nextCell){
+    while(1){
+        
+        printf("-----MENU-----\r\n");
+        printf("1. Easy\r\n");
+        printf("2. Hard\r\n");
+        printf("3. Quit\r\n");
+        int choice;
+        printf("Enter your choice > ");
+        scanf("%d", &choice);
+        printf("Your choice : %d\r\n", choice);
+
+        int MAPSize, slowness;
+        switch(choice)
+        {
+            case 1:
+                MAPSize = 20;
+                slowness = 300;
+                break;
+            case 2:
+                MAPSize = 10;
+                slowness = 100;
+                break;
+            case 3:
+                quit = 1;
+                break;
+        }
+        if(choice == 3)
+            break;
+
+        // map init
+        mapInit(MAPSize);
+
+
+        // snake init
+        cell *firstCell = (cell*)malloc(sizeof(cell));
+        firstCell->next = NULL;
+        firstCell->x = 1;
+        firstCell->y = 1;
+        snake *mySnake = (snake*)malloc(sizeof(snake));
+        mySnake->head = firstCell;
+        mySnake->tail = firstCell;
+        mySnake->size = 1;
+
+        MAP[firstCell->x][firstCell->y] = 'x';
+        
+
+
+        int result = running(mySnake, slowness);
+        if(result == 1)
+            printf("You lost! You reached the size of: %d cells! GG!\r\n", mySnake->size);
+        else if(result == 2)
+            printf("You won! You reached the maximum possible size for this game: %d. GG!\r\n", mySnake->size);
+
+
+
+        /* free map */
+        for (int i = 0; i < MAX_X; i++) {
+            free(MAP[i]);
+        }
+        free(MAP);
+
+        /* free cells */
+        firstCell = mySnake->head;
+        cell *nextCell = mySnake->head->next;
+        while(nextCell){
+            free(firstCell);
+            firstCell = nextCell;
+            nextCell = nextCell->next;
+        }
         free(firstCell);
-        firstCell = nextCell;
-        nextCell = nextCell->next;
-    }
-    free(firstCell);
 
-    /* free snake */
-    free(mySnake);
+        /* free snake */
+        free(mySnake);
+
+    }
+    if(quit)
+        printf("You left :( Come back later!\r\n");
+
 
     return 0;
 }
